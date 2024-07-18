@@ -44,3 +44,7 @@ class Player(models.Model):
 
     class Meta:
         verbose_name = 'RoomPlayer'
+        unique_together = (
+            ('room','index')
+            ('room','device')
+        ),
