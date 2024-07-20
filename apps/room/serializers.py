@@ -7,10 +7,11 @@ from apps.room.models import Room
 
 class RoomSerializer(serializers.ModelSerializer):
     player_count = serializers.IntegerField(validators=[
-        MinValueValidator(2,message="min player count is 2"),
-        MaxValueValidator(8,message="max player count is 8")
+        MinValueValidator(2, message="min player count is 2"),
+        MaxValueValidator(8, message="max player count is 8")
     ])
-    def valiadate_table(self,table):
+
+    def valiadate_table(self, table):
         if table is not None and table.type != Device.Type.TABLET:
             raise serializers.ValidationError("a tablet is required to create a room")
         return table
@@ -19,11 +20,12 @@ class RoomSerializer(serializers.ModelSerializer):
         model = Room
         fields = ("player_count", "table")
 
-class DeviceSerializer(serializers.ModelSerializer):
 
+class DeviceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Device
         fields = ["name", "device_id"]
+
 
 class RoomDetailSerializer(serializers.ModelSerializer):
     players = DeviceSerializer(many=True, read_only=True, source="player_set")
@@ -31,6 +33,7 @@ class RoomDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Room
         fields = ["player_count", "status", "players"]
+
 
 class JoinRoomSerializer(serializers.Serializer):
     index = serializers.IntegerField()
@@ -62,16 +65,17 @@ class JoinRoomSerializer(serializers.Serializer):
             raise serializers.ValidationError("device already joined")
         return attrs
 
-    class LeaveRoomSerializer(serializers.Serializer):
-        room = serializers.PrimaryKeyRelatedField(queryset=Room.objects.all())
-        mobile = serializers.PrimaryKeyRelatedField(queryset=Device.objects.filter(type=Device.Type.MOBILE))
 
-        def validate_room(self, room):
-            if room.status != Room.Status.WAITING:
-                raise serializers.ValidationError("only waiting room can leave")
-            return room
+class LeaveRoomSerializer(serializers.Serializer):
+    room = serializers.PrimaryKeyRelatedField(queryset=Room.objects.all())
+    mobile = serializers.PrimaryKeyRelatedField(queryset=Device.objects.filter(type=Device.Type.MOBILE))
 
-        def validate_mobile(self, mobile):
-            if not Room.objects.filter(player_set__device=mobile).exists():
-                raise serializers.ValidationError("device not joined")
-            return mobile
+    def validate_room(self, room):
+        if room.status != Room.Status.WAITING:
+            raise serializers.ValidationError("only waiting room can leave")
+        return room
+
+    def validate_mobile(self, mobile):
+        if not Room.objects.filter(player_set__device=mobile).exists():
+            raise serializers.ValidationError("device not joined")
+        return mobile
