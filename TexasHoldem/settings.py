@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-3%_rby(w47ovm8ndq17)((bgialvl$ykgx3s4e#&zzro(k0!ya
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -39,6 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     "channels",
+    "corsheaders",
+    "rest_framework",
 
     "apps.device",
     "apps.room",
@@ -47,6 +49,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -72,6 +75,8 @@ TEMPLATES = [
         },
     },
 ]
+
+ASGI_APPLICATION = 'TexasHoldem.asgi.application'
 
 WSGI_APPLICATION = 'TexasHoldem.wsgi.application'
 
@@ -122,6 +127,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'static'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
@@ -131,6 +137,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # channels, dev only
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [('127.0.0.1', 6379)],
+        },
     },
 }
+
+# cors
+CORS_ALLOW_ALL_ORIGINS = True

@@ -10,8 +10,15 @@ class RoomSerializer(serializers.ModelSerializer):
         MinValueValidator(2, message="min player count is 2"),
         MaxValueValidator(8, message="max player count is 8")
     ])
+    table = serializers.CharField()
 
     def valiadate_table(self, table):
+        is_tablet = table.startswith("tablet")
+        if is_tablet:
+            device_type = Device.Type.TABLET
+        else:
+            device_type = Device.Type.MOBILE
+        table, created = Device.objects.get_or_create(device_id=table, type=device_type)
         if table is not None and table.type != Device.Type.TABLET:
             raise serializers.ValidationError("a tablet is required to create a room")
         return table

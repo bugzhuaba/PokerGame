@@ -5,6 +5,11 @@ from typing import Optional, List, Dict, Any
 from treys import Card, Evaluator, Deck
 from pydantic import BaseModel
 
+class GameStatus(str, Enum):
+    WAITING = "waiting"
+    ROUND_PLAYING = "playing"
+    ROUND_FINISHED = "round_finished"
+    FINISHED = "finished"
 
 class GamePhase(str, Enum):
     PREFLOP = "preflop"
@@ -21,6 +26,7 @@ class PlayerStatus(str, Enum):
 
 
 class ActionType(str, Enum):
+    NEW_ROUND = "new_round"
     JOIN = "join"
     LEAVE = "leave"
     BET = "bet"
@@ -72,14 +78,21 @@ class RoundState(BaseModel):
         if not self.remaining_deck:
             self.remaining_deck = Deck.GetFullDeck()
             random.shuffle(self.remaining_deck)
-            deck.cards = self.remaining_deck
-            return deck
+        deck.cards = self.remaining_deck
+        return deck
 
         def deal(self, index):
-            cards = self.deck.draw(2)
+            cards = [
+                Card.int_to_str(card) for card in self.deck.draw(2)
+            ]
             if index in self.players:
                 raise ValueError("Error: duplicate deal")
-            self.players[index] = PlayerRoundState(index=index, bet=0, status=PlayerStatus.ACTIVE, hand=cards)
+            self.players[index] = PlayerRoundState(
+                index=index,
+                bet=0,
+                status=PlayerStatus.ACTIVE,
+                hand=cards
+            )
             return cards
 
         def deal_community_cards(self, num: int):
@@ -87,9 +100,10 @@ class RoundState(BaseModel):
 
 
 class GameState(BaseModel):
-    players: Dict[int, Player]
+    players: Dict[int, Player] = {}
     dealer: int = 0
     rounds: List[RoundState] = []
+    status: GameStatus = GameStatus.WAITING
 
     def next_dealer(self):
         self.dealer = (self.dealer + 1) % 2 + 1
@@ -125,18 +139,15 @@ class PokerGame:
         self.round = new_round
         self.state.rounds.append(new_round)
 
-        # deal community cards
-        self.advance_phase()
-
         # deal cards
         for player in self.state.players.values():
             new_round.deal(player.index)
 
         # set small blind and big blind 1 - max players
         self.state.dealer = (self.state.dealer % len(self.state.players)) + 1
-
         # deal blinds
         self.deal_blinds()
+        self.state.status = GameStatus.ROUND_PLAYING
 
     def add_player(self, index: int, chips: int):
         player = Player(index=index, chips=chips, status=PlayerStatus.ACTIVE)
@@ -148,7 +159,6 @@ class PokerGame:
         small_blind_amount = 10
         sb_player.chips -= small_blind_amount
         sb_round_player.bet = small_blind_amount
-        self.round.pot += small_blind_amount
         self.round.pot += small_blind_amount
         self.round.turns.append(
             TurnAction(player=self.state.small_blind_index, action=ActionType.BET, value=small_blind_amount))
@@ -185,6 +195,10 @@ class PokerGame:
         else:
             actions.append(ActionType.RAISE)
         return actions
+
+    def all_players_acted(self):
+        bets = [p.bet for p in self.round.players.values() if p.status == PlayerStatus.ACTIVE]
+        return len(set(bets)) == 1
 
     def check_and_advance_phase(self):
         # last action acted by dealer & all player acted
@@ -267,14 +281,18 @@ class PokerGame:
                 best_hand = hand
                 winner = index
 
-        self.round.reward = {winner: self.round.pot}
+        self.round.reward = {
+            "winner": winner,
+            "reward": self.round.pot
+        }
         self.state.players[winner].chips += self.round.pot
         self.round.pot = 0
         self.round.phase = GamePhase.SHOWDOWN
-        self.state.rounds.append(self.round)
-        self.new_round()
+        self.state.status = GameStatus.ROUND_FINISHED
 
     def advance_phase(self):
+        for player in self.round.players.values():
+            player.bet = 0
         if self.round.phase == GamePhase.PREFLOP:
             self.round.deal_community_cards(3)
             self.round.phase = GamePhase.FLOP
